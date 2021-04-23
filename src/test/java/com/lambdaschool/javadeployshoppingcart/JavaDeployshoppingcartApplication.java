@@ -5,7 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.PropertySource;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 
-@EnableJpaAuditing
+//@EnableJpaAuditing
 @SpringBootApplication
 //@PropertySource(value = "file:/Users/jacks/desktop/lambdaProjects/unit4/w3d4/java-deployejavadeployshoppingcart/")
 public class JavaDeployshoppingcartApplication {
