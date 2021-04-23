@@ -1,10 +1,11 @@
-package com.lambdaschool.javadeployshoppingcart.services;
+package com.lambdaschool.javadeployshoppingcart.controllers;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lambdaschool.javadeployshoppingcart.JavaDeployshoppingcartApplication;
 import com.lambdaschool.javadeployshoppingcart.models.*;
-import com.lambdaschool.javadeployshoppingcart.repository.CartItemRepository;
-import com.lambdaschool.javadeployshoppingcart.repository.ProductRepository;
-import com.lambdaschool.javadeployshoppingcart.repository.UserRepository;
+import com.lambdaschool.javadeployshoppingcart.services.CartItemService;
+import com.lambdaschool.javadeployshoppingcart.services.UserService;
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -12,9 +13,20 @@ import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.MockitoAnnotations;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.http.MediaType;
+import org.springframework.security.test.context.support.WithMockUser;
+import org.springframework.security.test.context.support.WithUserDetails;
+import org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers;
 import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.web.servlet.RequestBuilder;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -24,24 +36,28 @@ import static junit.framework.TestCase.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 
+import static org.junit.Assert.*;
 @RunWith(SpringRunner.class)
-@SpringBootTest(classes = JavaDeployshoppingcartApplication.class,
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT,
+        classes = JavaDeployshoppingcartApplication.class,
 properties = {"command.line.runner.enabled=false"})
-public class CartItemServiceImplTestNoDB {
-    private List<User> userList = new ArrayList<>();
-    private List<Product> prodList = new ArrayList<>();
-
+@AutoConfigureMockMvc
+@WithMockUser(username = "admin",
+roles = {"USER", "ADMIN"})
+public class CartControllerUnitTestNoDB {
     @Autowired
+    private WebApplicationContext webApplicationContext;
+
+    private MockMvc mockMvc;
+
+    @MockBean
     CartItemService cartItemService;
 
     @MockBean
-    private UserRepository userrepos;
+    private UserService userService;
 
-    @MockBean
-    private ProductRepository prodrepos;
-
-    @MockBean
-    private CartItemRepository cartitemrepos;
+    private List<User> userList = new ArrayList<>();
+    private List<Product> prodList = new ArrayList<>();
 
     @Before
     public void setUp() throws Exception {
@@ -150,8 +166,11 @@ public class CartItemServiceImplTestNoDB {
         userList.add(u2);
         userList.add(u3);
 
-        MockitoAnnotations.initMocks(this);
+        RestAssuredMockMvc.webAppContextSetup(webApplicationContext);
 
+        mockMvc = MockMvcBuilders.webAppContextSetup(webApplicationContext)
+                .apply(SecurityMockMvcConfigurers.springSecurity())
+                .build();
     }
 
     @After
@@ -159,36 +178,52 @@ public class CartItemServiceImplTestNoDB {
     }
 
     @Test
-    public void addToCart() {
-        CartItemId cartItemId = new CartItemId(1, 1);
+    public void listCartItemsByUserId() throws Exception {
+        String apiUrl = "/carts/user";
+        Mockito.when(userService.findByName(any(String.class)))
+                .thenReturn(userList.get(0));
+
+        RequestBuilder rb = MockMvcRequestBuilders.get(apiUrl)
+                .accept(MediaType.APPLICATION_JSON);
+        MvcResult r = mockMvc.perform(rb)
+                .andReturn();
+        String tr = r.getResponse()
+                .getContentAsString();
+
+        ObjectMapper mapper = new ObjectMapper();
+        String er =  mapper.writeValueAsString(userList.get(0));
+
+        assertEquals(er, tr);
+    }
+
+    @Test
+    public void addToCart() throws Exception{
+        String apiUrl = "/carts/add/product/1";
         CartItem cart3 = new CartItem();
         cart3.setUser(userList.get(0));
         cart3.setProduct(prodList.get(0));
         cart3.setComments("");
         cart3.setQuantity(2);
 
-        Mockito.when(userrepos.findById(1L)).thenReturn(Optional.of(userList.get(0)));
-        Mockito.when(prodrepos.findById(1L)).thenReturn(Optional.of(prodList.get(0)));
-        Mockito.when(cartitemrepos.findById(any(CartItemId.class))).thenReturn(Optional.of(cart3));
-        Mockito.when(cartitemrepos.save(any(CartItem.class))).thenReturn(cart3);
+        Mockito.when(userService.findByName(any(String.class)))
+                .thenReturn(userList.get(0));
+        Mockito.when(cartItemService.addToCart(any(Long.class), any(Long.class), any(String.class)))
+                .thenReturn(cart3);
 
-        assertEquals(3,cartItemService.addToCart(1L, 1L, "Hello").getQuantity());
+        RequestBuilder rb = MockMvcRequestBuilders.get(apiUrl)
+                .accept(MediaType.APPLICATION_JSON);
+        MvcResult r = mockMvc.perform(rb)
+                .andReturn();
+        String tr = r.getResponse()
+                .getContentAsString();
+
+        ObjectMapper mapper = new ObjectMapper();
+        String er =  mapper.writeValueAsString(cart3);
+
+        assertEquals(er, tr);
     }
 
     @Test
     public void removeFromCart() {
-        CartItemId cartItemId = new CartItemId(1, 1);
-        CartItem cart3 = new CartItem();
-        cart3.setUser(userList.get(0));
-        cart3.setProduct(prodList.get(0));
-        cart3.setComments("");
-        cart3.setQuantity(3);
-
-        Mockito.when(userrepos.findById(1L)).thenReturn(Optional.of(userList.get(0)));
-        Mockito.when(prodrepos.findById(1L)).thenReturn(Optional.of(prodList.get(0)));
-        Mockito.when(cartitemrepos.findById(any(CartItemId.class))).thenReturn(Optional.of(cart3));
-        Mockito.when(cartitemrepos.save(any(CartItem.class))).thenReturn(cart3);
-
-        assertEquals(2, cartItemService.removeFromCart(1L, 1L, "Bye").getQuantity());
     }
 }
